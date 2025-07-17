@@ -1,6 +1,7 @@
 import logging
+import os # Импорт os нужен для чтения переменной окружения
 from datetime import datetime, timezone
-import pytz # <-- ДОБАВЛЕННЫЙ ИМПОРТ pytz
+import pytz
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
@@ -13,21 +14,20 @@ from telegram.ext import (
 )
 import uuid # Импортируем модуль uuid для генерации уникальных ID
 
-# --- ДОБАВЛЕНЫ ИМПОРТЫ ДЛЯ FLASK И THREADING ---
-from flask import Flask
-from threading import Thread
-# --- КОНЕЦ ДОБАВЛЕННЫХ ИМПОРТОВ ---
-
 # Настройка логов
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO,
-    # filename='bot.log' # Эту строку лучше УБРАТЬ для Replit, так как он не будет постоянно писать в файл
 )
 logger = logging.getLogger(__name__)
 
 # Конфигурация бота
-TOKEN = "8191425731:AAHBmgRcOMVTPXzm5_hlATni7pKsLOqCyyM"  # ВАШ ТОКЕН БОТА!
+# ТОКЕН БУДЕТ СЧИТЫВАТЬСЯ ИЗ ПЕРЕМЕННОЙ ОКРУЖЕНИЯ
+TOKEN = os.getenv("TOKEN")
+if not TOKEN:
+    logger.error("TOKEN не установлен в переменных окружения!")
+    exit("Ошибка: Токен бота не найден. Установите его в переменных окружения на сервере.")
+
 # ID чатов
 GROUP_CHAT_ID = -1002816139814  # Общий рабочий чат
 ADMIN_IDS = [289350415, 5920291113]  # ID администраторов
@@ -407,7 +407,7 @@ async def handle_custom_rejection_reason(update: Update, context: ContextTypes.D
 
     # Отправляем уведомление с пользовательской причиной
     # Используем edit_message_text для изменения исходного сообщения админа
-    await _send_rejection_notification(mix_id, custom_reason, admin_name, 
+    await _send_rejection_notification(mix_id, custom_reason, admin_name,
                                        type('obj', (object,), {'edit_message_text': lambda text: context.bot.edit_message_text(chat_id=admin_chat_id, message_id=message_to_edit_id, text=text, parse_mode='Markdown')})(), # Эмулируем query_obj для edit_message_text
                                        context)
 
@@ -430,26 +430,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     return ConversationHandler.END
 
-# --- НОВЫЙ БЛОК: FLASK-СЕРВЕР ДЛЯ ПОДДЕРЖАНИЯ АКТИВНОСТИ ---
-flask_app = Flask('') # Инициализируем Flask-приложение
-
-@flask_app.route('/')
-def keep_alive():
-    return "Bot is alive!" # Просто текст, чтобы UptimeRobot знал, что сервер отвечает
-
-def run_flask_app_in_thread():
-    # Replit использует порт 8080 для веб-сервера. host='0.0.0.0' делает его доступным извне.
-    flask_app.run(host='0.0.0.0', port=8080)
-# --- КОНЕЦ НОВОГО БЛОКА ---
-
 def main():
-    # --- НОВОЕ: ЗАПУСК FLASK-СЕРВЕРА В ОТДЕЛЬНОМ ПОТОКЕ ---
-    # Это должно быть выполнено до запуска Telegram-бота
-    flask_thread = Thread(target=run_flask_app_in_thread)
-    flask_thread.start()
-    logger.info("Flask-сервер запущен в отдельном потоке.")
-    # --- КОНЕЦ НОВОГО ---
-
     app = ApplicationBuilder().token(TOKEN).build()
 
     # Инициализируем bot_data для хранения pending_mixes
@@ -492,7 +473,7 @@ def main():
     app.add_handler(admin_conv_handler) # Добавляем обработчик для админа
 
     logger.info("Бот запущен")
-    print("Бот работает. Нажмите Ctrl+C для остановки") # Это сообщение будет видно в консоли Replit
+    print("Бот работает. Нажмите Ctrl+C для остановки") # Это сообщение будет видно в консоли
     app.run_polling()
 
 if __name__ == '__main__':
